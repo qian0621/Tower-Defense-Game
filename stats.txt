@@ -1,0 +1,11 @@
+stats = {'turn': 31, 'killcount': 26, 'monsterpop': 7, 'gold': 36, 'threat': 1, 'danger': 4}
+settings = {'lanes': 4, 'columns': 8, 'killcount': 30, 'threat': 5}
+lanes = [[reconst(Archer, {'hp': 5, 'lane': 0, 'column': 0, 'upgradeCost': 8, 'damage': [1, 4]}), reconst(Archer, {'hp': 5, 'lane': 0, 'column': 1, 'upgradeCost': 8, 'damage': [1, 4]}), None, reconst(Werewolf, {'hp': 5, 'lane': 0, 'column': 3}), None, reconst(Zombie, {'hp': 17, 'lane': 0, 'column': 5}), reconst(Werewolf, {'hp': 12, 'lane': 0, 'column': 6}), reconst(Werewolf, {'hp': 13, 'lane': 0, 'column': 7})], [reconst(Archer, {'hp': 5, 'lane': 1, 'column': 0, 'upgradeCost': 8, 'damage': [1, 4]}), reconst(Archer, {'hp': 5, 'lane': 1, 'column': 1, 'upgradeCost': 8, 'damage': [1, 4]}), None, None, None, reconst(Mine, {'hp': None, 'lane': 1, 'column': 5, 'upgradeCost': 2, 'damage': 10}), None, reconst(Zombie, {'hp': 18, 'lane': 1, 'column': 7})], [reconst(Archer, {'hp': 6, 'lane': 2, 'column': 0, 'upgradeCost': 11, 'damage': [2, 5], 'maxhp': 6}), reconst(Archer, {'hp': 5, 'lane': 2, 'column': 1, 'upgradeCost': 8, 'damage': [1, 4]}), reconst(Wall, {'hp': 4, 'lane': 2, 'column': 2, 'upgradeCost': 6}), None, None, None, reconst(Zombie, {'hp': 1, 'lane': 2, 'column': 6}), None], [reconst(Archer, {'hp': 5, 'lane': 3, 'column': 0, 'upgradeCost': 8, 'damage': [1, 4]}), reconst(Archer, {'hp': 5, 'lane': 3, 'column': 1, 'upgradeCost': 8, 'damage': [1, 4]}), None, None, None, None, None, reconst(Zombie, {'hp': 18, 'lane': 3, 'column': 7})]]
+Werewolf.maxhp = 13
+Werewolf.value = 6
+Werewolf.damage = [4, 7]
+Werewolf.speed = 2
+Zombie.maxhp = 18
+Zombie.value = 5
+Zombie.damage = [6, 9]
+Zombie.speed = 1
