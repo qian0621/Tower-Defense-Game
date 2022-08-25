@@ -1,7 +1,7 @@
 from random import randint, choice
 
 
-def ispint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -> int:
+def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -> int:
     """Check if user input is positive integer, repeat input function if otherwise"""
     while True:
         try:
@@ -175,8 +175,8 @@ class Defender(Unit):
         print(self.__class__.__name__, f"{self.hp}/{self.maxhp}", sep="\t")  # Current health
         print("Healing costs 2 hp/gold")  # Show price
         while True:  # Repeat until valid input
-            payment = ispint("How much are you paying? ", mininput=0,
-                             maxinput=(self.maxhp - self.hp) // 2)  # input hp amt with validation
+            payment = checkint("How much are you paying? ", mininput=0,
+                               maxinput=(self.maxhp - self.hp) // 2)  # input hp amt with validation
             if payment == 0:  # did not buy heal
                 return False  # healing fail
             else:  # if buy heal
@@ -297,12 +297,12 @@ def changesettings() -> list[list[None]]:
                             f"Threat Metre length:\t{settings['threat']}",
                             header="Settings:", query="Change: ")
         if editsettings == 1:
-            settings['columns'] = ispint("No. of columns: ", mininput=2, maxinput=10)
-            settings['lanes'] = ispint("No. of lanes: ", maxinput=26)
+            settings['columns'] = checkint("No. of columns: ", mininput=2, maxinput=10)
+            settings['lanes'] = checkint("No. of lanes: ", maxinput=26)
         elif editsettings == 2:
-            settings['killcount'] = ispint("Kills needed to win: ", maxinput=10 ** 31)
+            settings['killcount'] = checkint("Kills needed to win: ", maxinput=10 ** 31)
         elif editsettings == 3:
-            settings['threat'] = ispint("Threat Metre length: ", maxinput=40)
+            settings['threat'] = checkint("Threat Metre length: ", maxinput=40)
         else:
             return setup()
 
@@ -369,7 +369,7 @@ def menu(*options: str, header: str = "", goback: str = "Exit", query: str = "Yo
         print(f"{i}. {option}".ljust(28), end=end)
         i += 1
     print(f"{0}. {goback}")
-    return ispint(query, mininput=0, maxinput=i - 1)
+    return checkint(query, mininput=0, maxinput=i - 1)
 
 
 def positionvalidation(query: str) -> (str, int):
