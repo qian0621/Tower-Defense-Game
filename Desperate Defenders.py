@@ -93,17 +93,18 @@ class Monster(Unit):
                 displacement += 1  # Distance traveled increase by 1
                 print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} advances to {laneletters[self.lane]}{self.column + 1}!")
             elif isinstance(lanes[self.lane][self.column - 1], Mine):
-                print(self.__class__.__name__, "steps on Mine!")
+                print(self.__class__.__name__, "triggers Mine!")
                 lanes[self.lane][self.column - 1].explode()
                 if lanes[self.lane][self.column] != self:
                     return
-            else:  # If Units in way
-                break  # Monster stops moving
-        # attack
-        if isinstance(lanes[self.lane][self.column - 1], Defender) and not isinstance(lanes[self.lane][self.column - 1], Mine):  # if Defender in front
-            damage = randint(*self.damage)  # Randomise damage
-            print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} attacks {lanes[self.lane][self.column - 1].__class__.__name__}; inflicts {damage} damage!")
-            lanes[self.lane][self.column - 1].damaged(damage)  # Injure Defender
+            elif isinstance(lanes[self.lane][self.column - 1], Defender):  # if Defender in front
+                damage = randint(*self.damage)  # Randomise damage
+                print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} attacks {lanes[self.lane][self.column - 1].__class__.__name__}; inflicts {damage} damage!")
+                if not lanes[self.lane][self.column - 1].damaged(damage):  # Injure Defender
+                    return
+            else:  # If Monster in way
+                print(f'{self.__class__.__name__} in lane {laneletters[self.lane]} is blocked from advancing.')
+                return  # Monster stops moving
 
     def damaged(self, damage: int = 0) -> bool:
         """Check if unit is killed; if killed process"""
@@ -436,7 +437,7 @@ def turning():
         stats['danger'] += 1  # danger level increases
         for Attacker in Monster.__subclasses__():  # Each Monster type strengthens
             Attacker.strengthen()
-        print("Monsters grow stronger!")
+        print("Evil Strengthens!")
 
 
 def savegame():
