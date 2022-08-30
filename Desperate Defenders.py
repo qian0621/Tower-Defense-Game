@@ -1,4 +1,4 @@
-from random import randint, choice
+from random import randint, choice, random
 
 
 def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -> int:
@@ -77,6 +77,12 @@ class Monster(Unit):
         stats['monsterpop'] += 1  # Update Monster population records
         print(f"{self.__class__.__name__} spawns at {laneletters[self.lane]}{self.column + 1}!")
 
+    def move(self, distance: int = -1):
+        """Negative distances move left, positive right"""
+        lanes[self.lane][self.column] = None  # Monster leaves original square
+        self.column += distance  # Monster understands it moved
+        lanes[self.lane][self.column] = self  # Monster reaches next square
+
     def attack(self):
         """Monster advance and attack"""
         # advance
@@ -87,9 +93,7 @@ class Monster(Unit):
                       "You have lost the game. :(")
                 exit(0)
             elif lanes[self.lane][self.column - 1] is None:  # if in front Unoccupied
-                lanes[self.lane][self.column] = None  # Monster leaves original square
-                lanes[self.lane][self.column - 1] = self  # Monster reaches next square
-                self.column -= 1  # Monster understands it moved
+                self.move()
                 displacement += 1  # Distance traveled increase by 1
                 print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} advances to {laneletters[self.lane]}{self.column + 1}!")
             elif isinstance(lanes[self.lane][self.column - 1], Mine):
@@ -231,11 +235,11 @@ class Cannon(Defender):
     value = 7
     upamt = 1
     upprob = 0.1
-    cooldown = 3
+    cooldown = 2
 
     def __init__(self):
         super().__init__(upgradecost=10)  # specify upgrade cost
-        self.damage = [3, 5]
+        self.damage = [8, 10]
         self.push = 0.5
         self.setup = self.cooldown
 
@@ -252,11 +256,21 @@ class Cannon(Defender):
         else:
             return False
 
+    def fire(self):
+        if self.cooldown == self.setup:
+            if self.push >= random():
+                push = True
+            else:
+                push = False
+            self.setup = 0
+            return randint(*self.damage), push
+        else:
+            self.setup += 1
+
 
 class Mine(Defender):
     maxhp = None
     value = 8
-    updamage = 2
 
     def __init__(self):
         super().__init__(upgradecost=2)  # specify upgrade cost
@@ -264,7 +278,7 @@ class Mine(Defender):
 
     def upgrade(self) -> bool:
         if super().upgrade():
-            self.damage += self.updamage
+            self.damage += 2
             return True
         else:
             return False
@@ -338,18 +352,43 @@ def battle():
     """Defenders and Monsters fight"""
     for lane in lanes:
         arrow = 0
+        shelling = []
         for square in lane:
             if isinstance(square, Archer):  # Fire arrow
                 arrow += randint(*square.damage)
+            if isinstance(square, Cannon):
+                tba = square.fire()
+                if tba is not None:
+                    shelling.append(list(tba))
             if isinstance(square, Monster):
                 print()
-                if arrow != 0:  # Hit
-                    print(f"Arrows rain down on {square.__class__.__name__} in {laneletters[square.lane]}{square.column + 1}; inflicts {arrow} damage!")
-                    if not square.damaged(arrow):
-                        square.attack()  # Monster Attack
+                if arrow:  # Hit
+                    print(f'Arrows rain down on {square.__class__.__name__} in {laneletters[square.lane]}{square.column + 1}; inflicts {arrow} damage!')
+                    if square.damaged(arrow):
+                        arrow = 0
+                        continue
                     arrow = 0
-                else:
-                    square.attack()
+                if shelling:
+                    for shell in shelling[:]:
+                        if shell[0] > square.hp:
+                            retard = square.hp
+                            print(f'Cannon ball tears straight through {laneletters[square.lane]}{square.column + 1} {square.__class__.__name__}')
+                            square.damaged(shell[0])
+                            shell[0] -= retard
+                            break
+                        else:
+                            print(f'Cannon ball hits {laneletters[square.lane]}{square.column + 1} {square.__class__.__name__} and loses momentum, dealing {shell[0]} damage')
+                            if not square.damaged(shell[0]) and shell[1]:
+                                if square.column + 1 == settings['columns']:
+                                    print(square.__class__.__name__, 'is pushed off the field!')
+                                    lanes[square.lane][square.column] = None
+                                else:
+                                    print(square.__class__.__name__, 'is pushed back one square!')
+                                    square.move(1)
+                            shelling.remove(shell)
+                    if square.hp <= 0:
+                        continue
+                square.attack()
 
 
 def battlefieldisplay(squarespacing: int = 8):
