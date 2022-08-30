@@ -164,7 +164,7 @@ class Defender(Unit):
                 yn = input("Upgrade? (y/n): ").strip().lower()  # Ask to upgrade
                 if yn == "y":  # If yes
                     stats['gold'] -= self.upgradeCost  # Collect payment
-                    self.upgradeCost += 3  # Upgrade cost increase by 2/upgrade
+                    self.upgradeCost += 3  # Upgrade cost increase per upgrade
                     print(f"\n{self.__class__.__name__} at {laneletters[self.lane]}{self.column + 1} is upgraded")
                     return True  # Successfully upgraded
                 elif yn == "n":  # If no
@@ -210,7 +210,6 @@ class Wall(Defender):
 class Archer(Defender):
     maxhp = 5
     value = 5
-    upgradeamt = 1
 
     def __init__(self):
         super().__init__(upgradecost=8)  # specify upgrade cost
@@ -218,10 +217,37 @@ class Archer(Defender):
 
     def upgrade(self) -> bool:
         if super().upgrade():
-            self.hp += self.upgradeamt  # Increase hit points
-            self.maxhp += self.upgradeamt  # Increase Max hit points
-            self.damage[0] += self.upgradeamt
-            self.damage[1] += self.upgradeamt
+            self.hp += 1  # Increase hit points
+            self.maxhp += 1  # Increase Max hit points
+            self.damage[0] += 1
+            self.damage[1] += 1
+            return True
+        else:
+            return False
+
+
+class Cannon(Defender):
+    maxhp = 8
+    value = 7
+    upamt = 1
+    upprob = 0.1
+    cooldown = 3
+
+    def __init__(self):
+        super().__init__(upgradecost=10)  # specify upgrade cost
+        self.damage = [3, 5]
+        self.push = 0.5
+        self.setup = self.cooldown
+
+    def upgrade(self) -> bool:
+        if super().upgrade():
+            self.hp += self.upamt  # Increase hit points
+            self.maxhp += self.upamt  # Increase Max hit points
+            self.damage[0] += self.upamt
+            self.damage[1] += self.upamt
+            self.push += 0.1
+            if self.cooldown > 1:
+                self.cooldown -= 1
             return True
         else:
             return False
@@ -230,7 +256,7 @@ class Archer(Defender):
 class Mine(Defender):
     maxhp = None
     value = 8
-    upgradedamage = 2
+    updamage = 2
 
     def __init__(self):
         super().__init__(upgradecost=2)  # specify upgrade cost
@@ -238,7 +264,7 @@ class Mine(Defender):
 
     def upgrade(self) -> bool:
         if super().upgrade():
-            self.damage += self.upgradedamage
+            self.damage += self.updamage
             return True
         else:
             return False
