@@ -53,10 +53,14 @@ class Unit(metaclass=Meta):
         """Check if unit is killed; if killed return True and remove dead body; else return False"""
         self.hp -= damage
         if self.hp <= 0:  # killed
-            print(self.__class__.__name__, "dies!")  # declaration
-            lanes[self.lane][self.column] = None  # remove dead body
+            self.dead()
             return True
         return False  # Still alive
+
+    def dead(self):
+        """process death"""
+        lanes[self.lane][self.column] = None  # remove dead body
+        print(self.__class__.__name__, "dies!")  # declaration
 
 
 class Monster(Unit):
@@ -77,49 +81,74 @@ class Monster(Unit):
         stats['monsterpop'] += 1  # Update Monster population records
         print(f"{self.__class__.__name__} spawns at {laneletters[self.lane]}{self.column + 1}!")
 
-    def move(self, distance: int = -1):
+    def move(self, distance: int, polite: bool = True):
         """Negative distances move left, positive right"""
-        lanes[self.lane][self.column] = None  # Monster leaves original square
-        self.column += distance  # Monster understands it moved
-        lanes[self.lane][self.column] = self  # Monster reaches next square
+        if distance < 0:
+            step = -1
+        else:
+            step = 1
+        lane = lanes[self.lane][self.column + step::step]
+        displacement = 0
+        pushed = []
+        for square in lane:
+            if isinstance(square, Monster):
+                if polite:
+                    print(f'{self.__class__.__name__} in lane {laneletters[self.lane]} is blocked from advancing.')
+                    return
+                else:
+                    pushed.append(square)
+            elif isinstance(square, Defender):
+                if isinstance(lanes[self.lane][self.column - 1], Mine):
+                    print(self.__class__.__name__, "triggers Mine!")
+                    lanes[self.lane][self.column - 1].explode()
+                    if lanes[self.lane][self.column] != self:
+                        return
+                else:
+                    self.attack()
+                    return
+            else:  # None
+                if pushed:
+                    pushed.insert(0, self)
+                    lanes[self.lane][self.column + step: self.column + step + len(pushed) * step: step] = pushed
+                    print(self.__class__.__name__, 'is pushed back one square!')
+                    return
+                else:
+                    lanes[self.lane][self.column] = None  # Monster leaves original square
+                    self.column += step  # Monster understands it moved
+                    lanes[self.lane][self.column] = self  # Monster reaches next square
+                    print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} advances to {laneletters[self.lane]}{self.column + 1}!")
+                    displacement += step
+                    if displacement == distance:
+                        return
+        if pushed:
+            pushed.insert(0, self)
+            print(self.__class__.__name__, 'is pushed back one square!')
+            print(pushed[step * -1].__class__.__name__, 'is pushed off the field!')
+            pushed[step * -1].dead()
+            del pushed[step * -1]
+            lanes[self.lane][self.column + step: self.column + step + len(pushed) * step: step] = pushed
+        elif step == -1:
+            print(f"A {self.__class__.__name__} has reached the city! All is lost!\n"
+                  "You have lost the game. :(")
+            exit(0)
+        else:
+            print(self.__class__.__name__, 'is pushed off the field!')
+            self.dead()
 
     def attack(self):
         """Monster advance and attack"""
-        # advance
-        displacement = 0  # distance moved
-        while displacement < self.speed:  # Until monster moves distance equal to speed
-            if self.column - 1 < 0:  # If city ahead
-                print(f"A {self.__class__.__name__} has reached the city! All is lost!\n"
-                      "You have lost the game. :(")
-                exit(0)
-            elif lanes[self.lane][self.column - 1] is None:  # if in front Unoccupied
-                self.move()
-                displacement += 1  # Distance traveled increase by 1
-                print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} advances to {laneletters[self.lane]}{self.column + 1}!")
-            elif isinstance(lanes[self.lane][self.column - 1], Mine):
-                print(self.__class__.__name__, "triggers Mine!")
-                lanes[self.lane][self.column - 1].explode()
-                if lanes[self.lane][self.column] != self:
-                    return
-            elif isinstance(lanes[self.lane][self.column - 1], Defender):  # if Defender in front
-                damage = randint(*self.damage)  # Randomise damage
-                print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} attacks {lanes[self.lane][self.column - 1].__class__.__name__}; inflicts {damage} damage!")
-                if not lanes[self.lane][self.column - 1].damaged(damage):  # Injure Defender
-                    return
-            else:  # If Monster in way
-                print(f'{self.__class__.__name__} in lane {laneletters[self.lane]} is blocked from advancing.')
-                return  # Monster stops moving
+        damage = randint(*self.damage)  # Randomise damage
+        print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} attacks {lanes[self.lane][self.column - 1].__class__.__name__}; inflicts {damage} damage!")
+        lanes[self.lane][self.column - 1].damaged(damage)  # Injure Defender
 
-    def damaged(self, damage: int = 0) -> bool:
-        """Check if unit is killed; if killed process"""
-        if super().damaged(damage):  # If killed: remove dead body
-            stats['monsterpop'] -= 1  # Monster population reduced
-            stats['killcount'] += 1  # Kill count increase
-            stats['gold'] += self.value  # Collect bounty
-            print(f"You gain {self.value} gold as a reward.")  # Declare
-            stats['threat'] += self.value  # Threat bar increase by Monster’s value.
-            return True  # slain() = True
-        return False  # else slain() = False
+    def dead(self):
+        """process death"""
+        super().dead()
+        stats['monsterpop'] -= 1  # Monster population reduced
+        stats['killcount'] += 1  # Kill count increase
+        stats['gold'] += self.value  # Collect bounty
+        print(f"You gain {self.value} gold as a reward.")  # Declare
+        stats['threat'] += self.value  # Threat bar increase by Monster’s value.
 
     @classmethod
     def strengthen(cls):  # Called/12 turns
@@ -235,12 +264,12 @@ class Cannon(Defender):
     value = 7
     upamt = 1
     upprob = 0.1
-    cooldown = 2
+    cooldown = 3
 
     def __init__(self):
         super().__init__(upgradecost=10)  # specify upgrade cost
-        self.damage = [8, 10]
-        self.push = 0.5
+        self.damage = [7, 10]
+        self.push = 0.4
         self.setup = self.cooldown
 
     def upgrade(self) -> bool:
@@ -249,23 +278,29 @@ class Cannon(Defender):
             self.maxhp += self.upamt  # Increase Max hit points
             self.damage[0] += self.upamt
             self.damage[1] += self.upamt
-            self.push += 0.1
+            self.push += self.upprob
             if self.cooldown > 1:
                 self.cooldown -= 1
+            print(self)
             return True
         else:
             return False
 
+    def __str__(self):
+        return f"HP: {self.hp}/{self.maxhp}\n" \
+               f"Damage: {self.damage[0]}-{self.damage[1]}\n" \
+               f"Push Probability: {self.push * 100}%\n" \
+               f"Firing Rate: {self.setup}/{self.cooldown}"
+
     def fire(self):
-        if self.cooldown == self.setup:
+        self.setup += 1
+        if self.cooldown <= self.setup:
             if self.push >= random():
                 push = True
             else:
                 push = False
-            self.setup = 0
+            self.setup = 0  # fires regardless of monsters
             return randint(*self.damage), push
-        else:
-            self.setup += 1
 
 
 class Mine(Defender):
@@ -364,10 +399,10 @@ def battle():
                 print()
                 if arrow:  # Hit
                     print(f'Arrows rain down on {square.__class__.__name__} in {laneletters[square.lane]}{square.column + 1}; inflicts {arrow} damage!')
-                    if square.damaged(arrow):
-                        arrow = 0
-                        continue
+                    square.damaged(arrow)  # dead
                     arrow = 0
+                    if square.hp <= 0:
+                        continue
                 if shelling:
                     for shell in shelling[:]:
                         if shell[0] > square.hp:
@@ -379,16 +414,10 @@ def battle():
                         else:
                             print(f'Cannon ball hits {laneletters[square.lane]}{square.column + 1} {square.__class__.__name__} and loses momentum, dealing {shell[0]} damage')
                             if not square.damaged(shell[0]) and shell[1]:
-                                if square.column + 1 == settings['columns']:
-                                    print(square.__class__.__name__, 'is pushed off the field!')
-                                    lanes[square.lane][square.column] = None
-                                else:
-                                    print(square.__class__.__name__, 'is pushed back one square!')
-                                    square.move(1)
+                                square.move(1)
                             shelling.remove(shell)
-                    if square.hp <= 0:
-                        continue
-                square.attack()
+                if lanes[square.lane][square.column] is square:
+                    square.move(square.speed * -1)
 
 
 def battlefieldisplay(squarespacing: int = 8):
