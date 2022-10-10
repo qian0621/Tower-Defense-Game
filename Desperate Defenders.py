@@ -49,6 +49,12 @@ class Unit(metaclass=Meta):
     def __repr__(self):
         return f"reconst({self.__class__.__name__}, {self.__dict__})"
 
+    def __str__(self):
+        return f'{laneletters[self.lane]}{self.column + 1} {self.__class__.__name__}'
+
+    def exist(self) -> bool:
+        return lanes[self.lane][self.column] is self
+
     def damaged(self, damage: int = 0) -> bool:
         """Check if unit is killed; if killed return True and remove dead body; else return False"""
         self.hp -= damage
@@ -59,8 +65,9 @@ class Unit(metaclass=Meta):
 
     def dead(self):
         """process death"""
-        lanes[self.lane][self.column] = None  # remove dead body
-        print(self.__class__.__name__, "dies!")  # declaration
+        if self.exist():
+            lanes[self.lane][self.column] = None  # remove dead body
+        print(self, "dies!")  # declaration
 
 
 class Monster(Unit):
@@ -73,7 +80,7 @@ class Monster(Unit):
             randlane = randint(0, settings['lanes'] - 1)
             if lanes[randlane][settings['columns'] - 1] is None:  # Location is empty
                 break
-            elif isinstance(lanes[randlane][settings['columns'] - 1], Defender):  # Spawning monster will smash Defenders at location
+            elif isinstance(lanes[randlane][settings['columns'] - 1], Defender):  # Spawning monster smashes Defenders at location
                 if isinstance(lanes[randlane][settings['columns'] - 1], Mine):
                     lanes[randlane][settings['columns'] - 1].explode()
                 break
@@ -81,64 +88,60 @@ class Monster(Unit):
         stats['monsterpop'] += 1  # Update Monster population records
         print(f"{self.__class__.__name__} spawns at {laneletters[self.lane]}{self.column + 1}!")
 
-    def move(self, distance: int, polite: bool = True):
-        """Negative distances move left, positive right"""
+    def move(self, distance: int, phrase: str = 'moves', polite: bool = True):
+        """distance: Negative distances move left, positive right
+        polite: will monster push other monsters"""
         if distance < 0:
             step = -1
         else:
             step = 1
         lane = lanes[self.lane][self.column + step::step]
+        moving = [self]
+
+        def stepping():     # multiple
+            lanes[self.lane][self.column] = None  # Monster leaves original square
+            for monster in moving:
+                if monster.column + step < 0:
+                    print(f"A {monster.__class__.__name__} has reached the city! All is lost!\n"
+                          "You have lost the game. :(")
+                    exit(0)
+                elif monster.column + step >= len(lanes[0]):
+                    print(monster, 'is pushed off the field!')
+                    monster.dead()
+                else:
+                    monster.column += step
+                    print(f"{monster.__class__.__name__} {phrase} to {laneletters[monster.lane]}{monster.column + 1}!")
+                    lanes[monster.lane][monster.column] = monster  # Monster reaches next square
+
         displacement = 0
-        pushed = []
         for square in lane:
             if isinstance(square, Monster):
                 if polite:
-                    print(f'{self.__class__.__name__} in lane {laneletters[self.lane]} is blocked from advancing.')
+                    print(self, 'is blocked from advancing.')
                     return
                 else:
-                    pushed.append(square)
+                    moving.append(square)
+                    continue
             elif isinstance(square, Defender):
-                if isinstance(lanes[self.lane][self.column - 1], Mine):
-                    print(self.__class__.__name__, "triggers Mine!")
-                    lanes[self.lane][self.column - 1].explode()
-                    if lanes[self.lane][self.column] != self:
-                        return
+                if isinstance(square, Mine):
+                    print(moving[-1].__class__.__name__, "triggers Mine!")
+                    square.explode()
+                    moving = [monster for monster in moving if monster.exist()]
                 else:
-                    self.attack()
+                    moving[-1].attack()
                     return
-            else:  # None
-                if pushed:
-                    pushed.insert(0, self)
-                    lanes[self.lane][self.column + step: self.column + step + len(pushed) * step: step] = pushed
-                    print(self.__class__.__name__, 'is pushed back one square!')
-                    return
-                else:
-                    lanes[self.lane][self.column] = None  # Monster leaves original square
-                    self.column += step  # Monster understands it moved
-                    lanes[self.lane][self.column] = self  # Monster reaches next square
-                    print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} advances to {laneletters[self.lane]}{self.column + 1}!")
-                    displacement += step
-                    if displacement == distance:
-                        return
-        if pushed:
-            pushed.insert(0, self)
-            print(self.__class__.__name__, 'is pushed back one square!')
-            print(pushed[step * -1].__class__.__name__, 'is pushed off the field!')
-            pushed[step * -1].dead()
-            del pushed[step * -1]
-            lanes[self.lane][self.column + step: self.column + step + len(pushed) * step: step] = pushed
-        elif step == -1:
-            print(f"A {self.__class__.__name__} has reached the city! All is lost!\n"
-                  "You have lost the game. :(")
-            exit(0)
-        else:
-            print(self.__class__.__name__, 'is pushed off the field!')
-            self.dead()
+            stepping()
+            displacement += step
+            if displacement == distance:
+                return
+        while displacement < distance:
+            displacement += step
+            stepping()
 
     def attack(self):
-        """Monster advance and attack"""
+        """Monster attack"""
         damage = randint(*self.damage)  # Randomise damage
-        print(f"{self.__class__.__name__} in lane {laneletters[self.lane]} attacks {lanes[self.lane][self.column - 1].__class__.__name__}; inflicts {damage} damage!")
+        print(f"{self} attacks {lanes[self.lane][self.column - 1]}; inflicts {damage} damage!")
         lanes[self.lane][self.column - 1].damaged(damage)  # Injure Defender
 
     def dead(self):
@@ -188,7 +191,7 @@ class Defender(Unit):
 
     def upgrade(self) -> bool:
         """Returns True if Defender is upgraded; False if otherwise"""
-        print("Upgrading", self.__class__.__name__, "costs", self.upgradeCost, "gold")  # Show price
+        print("Upgrading", self, "costs", self.upgradeCost, "gold")  # Show price
         if self.upgradeCost > stats['gold']:  # If not enough gold
             print("You do not have enough gold!")  # Declare
             return False  # Fail to upgrade
@@ -198,7 +201,7 @@ class Defender(Unit):
                 if yn == "y":  # If yes
                     stats['gold'] -= self.upgradeCost  # Collect payment
                     self.upgradeCost += 3  # Upgrade cost increase per upgrade
-                    print(f"\n{self.__class__.__name__} at {laneletters[self.lane]}{self.column + 1} is upgraded")
+                    print(self, 'is upgraded\n')
                     return True  # Successfully upgraded
                 elif yn == "n":  # If no
                     return False  # Fail to upgrade
@@ -206,7 +209,7 @@ class Defender(Unit):
                     print("Invalid Input! Please enter y or n")  # error message
 
     def heal(self):
-        print(self.__class__.__name__, f"{self.hp}/{self.maxhp}", sep="\t")  # Current health
+        print(self, f"{self.hp}/{self.maxhp}", sep="\t")  # Current health
         print("Healing costs 2 hp/gold")  # Show price
         while True:  # Repeat until valid input
             payment = checkint("How much are you paying? ", mininput=0,
@@ -219,7 +222,7 @@ class Defender(Unit):
                 else:  # if Enough gold
                     self.hp += payment * 2  # healing
                     stats['gold'] -= payment  # collect payment
-                    print(f"\n{self.__class__.__name__} recovers {payment * 2} hp!")  # Declare
+                    print(self, f'recovers {payment * 2} hp!')  # Declare
                     return True  # healing successful
 
 
@@ -281,15 +284,15 @@ class Cannon(Defender):
             self.push += self.upprob
             if self.cooldown > 1:
                 self.cooldown -= 1
-            print(self)
+            print(self.stat())
             return True
         else:
             return False
 
-    def __str__(self):
+    def stat(self):
         return f"HP: {self.hp}/{self.maxhp}\n" \
                f"Damage: {self.damage[0]}-{self.damage[1]}\n" \
-               f"Push Probability: {self.push * 100}%\n" \
+               f"Push Probability: {int(self.push * 100)}%\n" \
                f"Firing Rate: {self.setup}/{self.cooldown}"
 
     def fire(self):
@@ -300,7 +303,9 @@ class Cannon(Defender):
             else:
                 push = False
             self.setup = 0  # fires regardless of monsters
-            return randint(*self.damage), push
+            speed = randint(*self.damage)
+            print(f'{self} fires cannon ball at {speed} speed!')
+            return speed, push
 
 
 class Mine(Defender):
@@ -371,6 +376,7 @@ def changesettings() -> list[list[None]]:
         editsettings = menu(f"Board dimensions:\t{settings['columns']}x{settings['lanes']}",
                             f"Kills needed to win:\t{settings['killcount']}",
                             f"Threat Metre length:\t{settings['threat']}",
+                            f"Starting Gold:\t\t{stats['gold'] + 1}",
                             header="Settings:", query="Change: ")
         if editsettings == 1:
             settings['columns'] = checkint("No. of columns: ", mininput=2, maxinput=10)
@@ -379,6 +385,8 @@ def changesettings() -> list[list[None]]:
             settings['killcount'] = checkint("Kills needed to win: ", maxinput=10 ** 31)
         elif editsettings == 3:
             settings['threat'] = checkint("Threat Metre length: ", maxinput=40)
+        elif editsettings == 4:
+            stats['gold'] = checkint("Starting Gold: ", mininput=float('-inf')) - 1
         else:
             return setup()
 
@@ -398,26 +406,27 @@ def battle():
             if isinstance(square, Monster):
                 print()
                 if arrow:  # Hit
-                    print(f'Arrows rain down on {square.__class__.__name__} in {laneletters[square.lane]}{square.column + 1}; inflicts {arrow} damage!')
+                    print(f'Arrows rain down on {square}; inflicts {arrow} damage!')
                     square.damaged(arrow)  # dead
                     arrow = 0
-                    if square.hp <= 0:
+                    if not square.exist():
                         continue
                 if shelling:
                     for shell in shelling[:]:
                         if shell[0] > square.hp:
-                            retard = square.hp
-                            print(f'Cannon ball tears straight through {laneletters[square.lane]}{square.column + 1} {square.__class__.__name__}')
-                            square.damaged(shell[0])
-                            shell[0] -= retard
+                            shell[0] -= square.hp
+                            print(f'Cannon ball tears straight through {square}')
+                            square.dead()
                             break
                         else:
-                            print(f'Cannon ball hits {laneletters[square.lane]}{square.column + 1} {square.__class__.__name__} and loses momentum, dealing {shell[0]} damage')
+                            print(f'Cannon ball hits {square} and loses momentum, dealing {shell[0]} damage')
                             if not square.damaged(shell[0]) and shell[1]:
-                                square.move(1)
+                                square.move(1, 'is pushed back', False)
                             shelling.remove(shell)
-                if lanes[square.lane][square.column] is square:
-                    square.move(square.speed * -1)
+                        if not square.exist():
+                            break
+                if square.exist():
+                    square.move(square.speed * -1, 'advances')
 
 
 def battlefieldisplay(squarespacing: int = 8):
@@ -484,9 +493,9 @@ def unitshopping() -> bool:
                 header="What unit do you wish to buy? ")
     if unit == 0:
         return False
-    picked = Defender.__subclasses__()[unit - 1]
-    if picked.value <= stats['gold']:
-        picked()
+    Picked = Defender.__subclasses__()[unit - 1]
+    if Picked.value <= stats['gold']:
+        Picked()
         return True
     print("Not enough gold")
     return False
@@ -511,7 +520,7 @@ def heal() -> bool:
             else:
                 return False
         else:
-            print(lanes[lane][column].__class__.__name__, "cannot be healed")
+            print(lanes[lane][column], "cannot be healed")
 
 
 def turning():
