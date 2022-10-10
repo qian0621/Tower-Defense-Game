@@ -17,15 +17,6 @@ def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -
             print(f"Invalid entry. Please enter a number from {mininput}-{maxno}")
 
 
-def reconst(cls: type, attributes: dict):
-    args = []
-    for i in range(cls.__init__.__code__.co_argcount - 1):
-        args.append(None)
-    rebuilt = object.__new__(cls, *args)
-    rebuilt.__dict__.update(attributes)
-    return rebuilt
-
-
 class Meta(type):
     def __repr__(cls):
         retstr = ''
@@ -41,17 +32,37 @@ class Unit(metaclass=Meta):
 
     def __init__(self, lane: int, column: int):
         """Initialise hp and location"""
-        self.hp = self.maxhp
+        self._hp = self.maxhp
         self.lane = lane
         self.column = column
         lanes[self.lane][self.column] = self  # Appear on field
 
+    @property
+    def hp(self):
+        return self._hp
+
+    @hp.setter
+    def hp(self, value):
+        self._hp = value
+        if value <= 0:  # killed
+            self.dead()
+
     def __repr__(self):
-        return f"reconst({self.__class__.__name__}, {self.__dict__})"
+        return f"Unit.reconst({self.__class__.__name__}, {self.__dict__})"
+
+    @staticmethod
+    def reconst(cls: type, attributes: dict):
+        args = []
+        for i in range(cls.__init__.__code__.co_argcount - 1):
+            args.append(None)
+        rebuilt = object.__new__(cls, *args)
+        rebuilt.__dict__.update(attributes)
+        return rebuilt
 
     def __str__(self):
         return f'{laneletters[self.lane]}{self.column + 1} {self.__class__.__name__}'
 
+    @property
     def exist(self) -> bool:
         return lanes[self.lane][self.column] is self
 
@@ -65,7 +76,7 @@ class Unit(metaclass=Meta):
 
     def dead(self):
         """process death"""
-        if self.exist():
+        if self.exist:
             lanes[self.lane][self.column] = None  # remove dead body
         print(self, "dies!")  # declaration
 
@@ -73,19 +84,19 @@ class Unit(metaclass=Meta):
 class Monster(Unit):
     damage: list[int, int]
     speed: int
+    monsterpop = 0
 
     def __init__(self):
         """Spawn Monster"""
         while True:  # Generate possible locations until
-            randlane = randint(0, settings['lanes'] - 1)
-            if lanes[randlane][settings['columns'] - 1] is None:  # Location is empty
+            randlane = randint(0, len(lanes) - 1)
+            square = lanes[randlane][len(lane[0]) - 1]
+            if isinstance(square, Mine):
+                square.explode()
+            elif square is None or isinstance(square, Defender):  # Location is empty
                 break
-            elif isinstance(lanes[randlane][settings['columns'] - 1], Defender):  # Spawning monster smashes Defenders at location
-                if isinstance(lanes[randlane][settings['columns'] - 1], Mine):
-                    lanes[randlane][settings['columns'] - 1].explode()
-                break
-        super().__init__(randlane, settings['columns'] - 1)  # Created
-        stats['monsterpop'] += 1  # Update Monster population records
+        super().__init__(randlane, stats['columns'] - 1)  # Created
+        self.monsterpop += 1  # Update Monster population records
         print(f"{self.__class__.__name__} spawns at {laneletters[self.lane]}{self.column + 1}!")
 
     def move(self, distance: int, phrase: str = 'moves', polite: bool = True):
@@ -126,7 +137,7 @@ class Monster(Unit):
                 if isinstance(square, Mine):
                     print(moving[-1].__class__.__name__, "triggers Mine!")
                     square.explode()
-                    moving = [monster for monster in moving if monster.exist()]
+                    moving = [monster for monster in moving if monster.exist]
                 else:
                     moving[-1].attack()
                     return
@@ -147,7 +158,7 @@ class Monster(Unit):
     def dead(self):
         """process death"""
         super().dead()
-        stats['monsterpop'] -= 1  # Monster population reduced
+        self.monsterpop -= 1  # Monster population reduced
         stats['killcount'] += 1  # Kill count increase
         stats['gold'] += self.value  # Collect bounty
         print(f"You gain {self.value} gold as a reward.")  # Declare
@@ -284,11 +295,12 @@ class Cannon(Defender):
             self.push += self.upprob
             if self.cooldown > 1:
                 self.cooldown -= 1
-            print(self.stat())
+            print(self.stat)
             return True
         else:
             return False
 
+    @property
     def stat(self):
         return f"HP: {self.hp}/{self.maxhp}\n" \
                f"Damage: {self.damage[0]}-{self.damage[1]}\n" \
@@ -329,30 +341,30 @@ class Mine(Defender):
             mincol = 0
         else:
             mincol = self.column - 1
-        if self.column == settings['columns']:
-            maxcol = settings['columns']
+        if self.column == len(lanes[0]):
+            maxcol = len(lanes[0])
         else:
             maxcol = self.column + 2
         if self.lane == 0:
             minlane = 0
         else:
             minlane = self.lane - 1
-        if self.lane == settings['lanes']:
-            maxlane = settings['lanes']
+        if self.lane == len(lanes):
+            maxlane = len(lanes)
         else:
             maxlane = self.lane + 2
         for lane in lanes[minlane:maxlane]:
             for square in lane[mincol:maxcol]:
                 if isinstance(square, Monster):
-                    square.damaged(self.damage)
+                    square.hp -= self.damage
         lanes[self.lane][self.column] = None
 
 
-def setup() -> list[list[None]]:
+def setup(lane: int, col: int) -> list[list[None]]:
     battlefield = []
-    for lanei in range(settings['lanes']):
+    for lanei in range(lane):
         lane = []
-        for col in range(settings['columns']):
+        for col in range(col):
             lane.append(None)
         battlefield.append(lane)
     return battlefield
@@ -360,35 +372,33 @@ def setup() -> list[list[None]]:
 
 stats = {'turn': 0,  # Current Turn
          'killcount': 0,  # Number of monsters killed
-         'monsterpop': 0,  # Number of monsters in the field
          'gold': 9,  # Beginning game adds one gold automatically so put init gold 1 less than actual
          'threat': -1,  # Threat metre; start of game adds 1 to begin at 0
-         'danger': 1}  # Danger level != 0 cause randint increase threat and monsters strengthen
-settings = {'lanes': 4,
-            'columns': 8,
-            'killcount': 30,
-            'threat': 5}
-lanes = setup()
+         'danger': 1,  # Danger level != 0 cause randint increase threat and monsters strengthen
+         'maxkill': 30,
+         'threatbar': 5}
+lanes = setup(4, 8)
 
 
 def changesettings() -> list[list[None]]:
     while True:
-        editsettings = menu(f"Board dimensions:\t{settings['columns']}x{settings['lanes']}",
-                            f"Kills needed to win:\t{settings['killcount']}",
-                            f"Threat Metre length:\t{settings['threat']}",
+        editsettings = menu(f"Board dimensions:\t{len(lanes)}x{len(lanes[0])}",
+                            f"Kills needed to win:\t{stats['maxkill']}",
+                            f"Threat Metre length:\t{stats['threatbar']}",
                             f"Starting Gold:\t\t{stats['gold'] + 1}",
                             header="Settings:", query="Change: ")
         if editsettings == 1:
-            settings['columns'] = checkint("No. of columns: ", mininput=2, maxinput=10)
-            settings['lanes'] = checkint("No. of lanes: ", maxinput=26)
+            col = checkint("No. of columns: ", mininput=2, maxinput=10)
+            lane = checkint("No. of lanes: ", maxinput=26)
+            setup(lane, col)
         elif editsettings == 2:
-            settings['killcount'] = checkint("Kills needed to win: ", maxinput=10 ** 31)
+            stats['maxkill'] = checkint("Kills needed to win: ", maxinput=10 ** 31)
         elif editsettings == 3:
-            settings['threat'] = checkint("Threat Metre length: ", maxinput=40)
+            stats['threatbar'] = checkint("Threat Metre length: ", maxinput=40)
         elif editsettings == 4:
             stats['gold'] = checkint("Starting Gold: ", mininput=float('-inf')) - 1
         else:
-            return setup()
+            return
 
 
 def battle():
@@ -407,9 +417,9 @@ def battle():
                 print()
                 if arrow:  # Hit
                     print(f'Arrows rain down on {square}; inflicts {arrow} damage!')
-                    square.damaged(arrow)  # dead
+                    square.hp -= arrow  # dead
                     arrow = 0
-                    if not square.exist():
+                    if not square.exist:
                         continue
                 if shelling:
                     for shell in shelling[:]:
@@ -420,23 +430,25 @@ def battle():
                             break
                         else:
                             print(f'Cannon ball hits {square} and loses momentum, dealing {shell[0]} damage')
-                            if not square.damaged(shell[0]) and shell[1]:
-                                square.move(1, 'is pushed back', False)
+                            square.hp -= shell[0]
+                            if square.exist:
+                                if shell[1]:
+                                    square.move(1, 'is pushed back', False)
+                            else:
+                                break
                             shelling.remove(shell)
-                        if not square.exist():
-                            break
-                if square.exist():
+                if square.exist:
                     square.move(square.speed * -1, 'advances')
 
 
 def battlefieldisplay(squarespacing: int = 8):
     print(" " * (3 + squarespacing // 2), end="")  # spacing at front
-    for columno in range(1, settings['columns'] + 1):  # column numbering
+    for columno in range(1, len(lanes[0]) + 1):  # column numbering
         print(str(columno).ljust(squarespacing + 1), end="")
     print()  # end line
     lanei = 0
     for lane in lanes:  # each lane
-        print("  " + "+".ljust(squarespacing + 1, "-") * settings['columns'] + "+")  # lane borders
+        print("  " + "+".ljust(squarespacing + 1, "-") * len(lanes[0]) + "+")  # lane borders
         # Name row
         print(laneletters[lanei], "|", end="")  # lane lettering + starting vertical line
         for square in lane:  # each square
@@ -458,7 +470,7 @@ def battlefieldisplay(squarespacing: int = 8):
             print(hpstr.center(squarespacing), end="|")  # print hp + |
         print()  # end line
         lanei += 1
-    print("  " + "+".ljust(squarespacing + 1, "-") * settings['columns'] + "+")  # close bottom lane
+    print("  " + "+".ljust(squarespacing + 1, "-") * len(lanes[0]) + "+")  # close bottom lane
 
 
 def menu(*options: str, header: str = "", goback: str = "Exit", query: str = "Your Choice? ") -> int:
@@ -482,13 +494,13 @@ def positionvalidation(query: str) -> (str, int):
         if len(location) >= 2:
             if location[0] in laneletters and location[1:].isnumeric():
                 column = int(location[1:]) - 1
-                if 0 <= column < settings['columns']:
+                if 0 <= column < len(lanes[0]):
                     return laneletters.index(location[0]), column
         print("Invalid Input! Please enter a lane letter and a column number")
 
 
 def unitshopping() -> bool:
-    unit = menu(*[f"{pickme.__name__} ({pickme.value} gold)" for pickme in Defender.__subclasses__()],
+    unit = menu(*[f"{Pickme.__name__} ({Pickme.value} gold)" for Pickme in Defender.__subclasses__()],
                 goback="Don't buy",
                 header="What unit do you wish to buy? ")
     if unit == 0:
@@ -530,11 +542,11 @@ def turning():
     stats['gold'] += 1  # reward survival
     print()
     spawncount = 0
-    while stats['threat'] >= settings['threat'] and spawncount != settings['lanes']:  # if threat metre filled up
+    while stats['threat'] >= stats['threatbar'] and spawncount != stats['lanes']:  # if threat metre filled up
         choice(Monster.__subclasses__())()  # 1 monster spawned/metre length overflow
-        stats['threat'] -= settings['threat']
+        stats['threat'] -= stats['threatbar']
         spawncount += 1
-    if stats['monsterpop'] == 0:  # if empty field spawn monster
+    if Monster.monsterpop == 0:  # if empty field spawn monster
         choice(Monster.__subclasses__())()
     if stats['turn'] % 10 == 0:  # /10 turns
         stats['danger'] += 1  # danger level increases
@@ -546,7 +558,6 @@ def turning():
 def savegame():
     with open("stats.txt", "w") as savefile:
         savefile.write(f"stats = {stats}\n"
-                       f"settings = {settings}\n"
                        f"lanes = {lanes}\n")  # saved stats and settings to stats.txt
         for Monstertype in Monster.__subclasses__():
             savefile.write(repr(Monstertype))
@@ -570,20 +581,20 @@ if initchoice == 3:  # Settings
 if initchoice == 2:  # load game
     loadgame()
 if initchoice == 1 or 2:  # Play game
-    laneletters = tuple(map(chr, range(65, 91)))[:settings['lanes']]  # lane alphabets
-    while stats['killcount'] < settings['killcount']:  # loop until Reach killcount
+    laneletters = tuple(map(chr, range(65, 91)))[:len(lanes)]  # lane alphabets
+    while stats['killcount'] < stats['maxkill']:  # loop until Reach killcount
         if initchoice == 2:  # load game
             initchoice = 1
         elif initchoice == 1:
             turning()
         while True:
             battlefieldisplay()
-            chosen = menu("Buy unit", "Upgrade unit", "Heal unit", "End Turn", "Save game",
+            chosen = menu("Buy unit", "Upgrade unit", "Heal unit (2 hp / gold)", "End Turn", "Save game",
                           header=f"Turn {stats['turn']}\t\t\t"
-                                 f"Threat: [{('-' * stats['threat']).ljust(settings['threat'])}]\t\t\t"
+                                 f"Threat: [{('-' * stats['threat']).ljust(stats['threatbar'])}]\t\t\t"
                                  f"Danger Level: {stats['danger']}\n"
                                  f"Gold: {stats['gold']}\t\t\t"
-                                 f"Kill Count: {stats['killcount']}/{settings['killcount']}")
+                                 f"Kill Count: {stats['killcount']}/{stats['maxkill']}")
             if chosen == 1:  # Buy Unit
                 if unitshopping():
                     break
