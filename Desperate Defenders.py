@@ -20,9 +20,10 @@ def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -
 class Meta(type):
     def __repr__(cls):
         retstr = ''
-        for attr, value in cls.__dict__.items():
-            if not callable(value) and attr[:2] != '__':
-                retstr += f"{cls.__name__}.{attr} = {value}\n"
+        for name, obj in cls.__dict__.items():
+            if not hasattr(obj, '__get__') and name[:2] != '__':
+                retstr += f'{cls.__name__}.{name} = {obj}\n'
+                # class.__dict__ is a mappingproxy object; cannot be directly modified
         return retstr
 
 
@@ -51,12 +52,12 @@ class Unit(metaclass=Meta):
         return f"Unit.reconst({self.__class__.__name__}, {self.__dict__})"
 
     @staticmethod
-    def reconst(cls: type, attributes: dict):
+    def reconst(cls: type, attr: dict):
         args = []
         for i in range(cls.__init__.__code__.co_argcount - 1):
             args.append(None)
         rebuilt = object.__new__(cls, *args)
-        rebuilt.__dict__.update(attributes)
+        rebuilt.__dict__.update(attr)
         return rebuilt
 
     def __str__(self):
@@ -65,14 +66,6 @@ class Unit(metaclass=Meta):
     @property
     def exist(self) -> bool:
         return lanes[self.lane][self.column] is self
-
-    def damaged(self, damage: int = 0) -> bool:
-        """Check if unit is killed; if killed return True and remove dead body; else return False"""
-        self.hp -= damage
-        if self.hp <= 0:  # killed
-            self.dead()
-            return True
-        return False  # Still alive
 
     def dead(self):
         """process death"""
@@ -84,7 +77,7 @@ class Unit(metaclass=Meta):
 class Monster(Unit):
     damage: list[int, int]
     speed: int
-    monsterpop = 0
+    pop = 0
 
     def __init__(self):
         """Spawn Monster"""
@@ -96,7 +89,7 @@ class Monster(Unit):
             elif square is None or isinstance(square, Defender):  # Location is empty
                 break
         super().__init__(randlane, len(lanes[0]) - 1)  # Created
-        Monster.monsterpop += 1  # Update Monster population records
+        Monster.pop += 1  # Update Monster population records
         print(f"{self.__class__.__name__} spawns at {laneletters[self.lane]}{self.column + 1}!")
 
     def move(self, distance: int, phrase: str = 'moves', polite: bool = True):
@@ -158,7 +151,7 @@ class Monster(Unit):
     def dead(self):
         """process death"""
         super().dead()
-        Monster.monsterpop -= 1  # Monster population reduced
+        Monster.pop -= 1  # Monster population reduced
         stats['killcount'] += 1  # Kill count increase
         stats['gold'] += self.value  # Collect bounty
         print(f"You gain {self.value} gold as a reward.")  # Declare
@@ -546,7 +539,7 @@ def turning():
         choice(Monster.__subclasses__())()  # 1 monster spawned/metre length overflow
         stats['threat'] -= stats['threatbar']
         spawncount += 1
-    if Monster.monsterpop == 0:  # if empty field spawn monster
+    if Monster.pop == 0:  # if empty field spawn monster
         choice(Monster.__subclasses__())()
     if stats['turn'] % 10 == 0:  # /10 turns
         stats['danger'] += 1  # danger level increases
@@ -556,11 +549,16 @@ def turning():
 
 
 def savegame():
+    data = f"stats = {stats}\n"\
+           f"lanes = {lanes}\n" + \
+           repr(monster)
+    for Monstertype in Monster.__subclasses__():
+        data += repr(Monstertype)
+    hash(data)
     with open("stats.txt", "w") as savefile:
-        savefile.write(f"stats = {stats}\n"
-                       f"lanes = {lanes}\n")  # saved stats and settings to stats.txt
-        for Monstertype in Monster.__subclasses__():
-            savefile.write(repr(Monstertype))
+        savefile.write(data)  # saved stats and settings to stats.txt
+        savefile.write(repr(Monster))
+
     print("\nGame saved!")
 
 
