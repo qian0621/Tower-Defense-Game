@@ -20,7 +20,7 @@ Damage: 1-4
 ### Wall:
 Max HP: 20\
 Value: 3\
-Upgrade cost: 6\
+Upgrade cost: 5\
 HP and max HP will increase by 5
 
 ### Archer:
@@ -32,17 +32,17 @@ HP, max HP and damage range will increase by 1
 
 ### Cannon:
 Max HP: 8\
-Value: 7\
+Value: 10\
 Firing Rate: /3 turns\
 Damage: 7-10\
 Push Probability: 40%\
-Upgrade Cost: 10\
+Upgrade Cost: 15\
 HP, max HP and damage range will increase by 1\
 Push probability will increase by 10% till 100%\
 Firing rate will decrease by 1 turn until Cannon fires every turn
 
 ### Mine:
-Value: 8\
+Value: 7\
 Triggered by being stepped on:\
 Does 10 damage to nearby (3x3) squares\
 Upgrade Cost: 2\

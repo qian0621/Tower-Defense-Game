@@ -1,20 +1,8 @@
 from random import randint, choice, random
 
 
-def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -> int:
-    """Check if user input is positive integer, repeat input function if otherwise"""
-    while True:
-        try:
-            ans = int(input(query).strip())
-            if mininput <= ans <= maxinput:  # positive, does not accept 0
-                return ans
-            else:
-                raise ValueError
-        except ValueError:
-            maxno = maxinput
-            if maxinput == float('inf'):
-                maxno = 'Infinity'
-            print(f"Invalid entry. Please enter a number from {mininput}-{maxno}")
+green = lambda txt: f"\033[92m{txt}\033[00m"
+bold = lambda txt: f'\033[01m{txt}\033[00m'
 
 
 class Meta(type):
@@ -146,7 +134,7 @@ class Monster(Unit):
         """Monster attack"""
         damage = randint(*self.damage)  # Randomise damage
         print(f"{self} attacks {lanes[self.lane][self.column - 1]}; inflicts {damage} damage!")
-        lanes[self.lane][self.column - 1].damaged(damage)  # Injure Defender
+        lanes[self.lane][self.column - 1].hp -= damage  # Injure Defender
 
     def dead(self):
         """process death"""
@@ -180,7 +168,7 @@ class Zombie(Monster):
 
 
 class Defender(Unit):
-    upgradecost: int
+    upcost: int
 
     def __init__(self):
         """Initialise hp, location, upgrade costs, collect payment for unit, and declare entry to playing field"""
@@ -196,26 +184,16 @@ class Defender(Unit):
 
     def upgrade(self) -> bool:
         """Returns True if Defender is upgraded; False if otherwise"""
-        print("Upgrading", self, "costs", self.upgradecost, "gold")  # Show price
-        if self.upgradecost > stats['gold']:  # If not enough gold
+        if self.upcost > stats['gold']:  # If not enough gold
             print("You do not have enough gold!")  # Declare
             return False  # Fail to upgrade
         else:  # If enough gold
-            while True:  # Repeat until valid input given
-                yn = input("Upgrade? (y/n): ").strip().lower()  # Ask to upgrade
-                if yn == "y":  # If yes
-                    stats['gold'] -= self.upgradecost  # Collect payment
-                    self.upgradecost += 3  # Upgrade cost increase per upgrade
-                    print(self, 'is upgraded\n')
-                    return True  # Successfully upgraded
-                elif yn == "n":  # If no
-                    return False  # Fail to upgrade
-                else:  # If invalid input
-                    print("Invalid Input! Please enter y or n")  # error message
+            stats['gold'] -= self.upcost  # Collect payment
+            self.upcost += 3  # Upgrade cost increase per upgrade
+            print(self, 'is upgraded')
+            return True  # Successfully upgraded
 
     def heal(self):
-        print(self, f"{self.hp}/{self.maxhp}", sep="\t")  # Current health
-        print("Healing costs 2 hp/gold")  # Show price
         while True:  # Repeat until valid input
             payment = checkint("How much are you paying? ", mininput=0,
                                maxinput=(self.maxhp - self.hp) // 2)  # input hp amt with validation
@@ -234,22 +212,27 @@ class Defender(Unit):
 class Wall(Defender):
     maxhp = 20
     value = 3
-    upgradecost = 6
-    upgradeHeal = 5
+    upcost = 5
+    upamt = 5
 
     def upgrade(self) -> bool:
         if super(Wall, self).upgrade():
-            self.hp += self.upgradeHeal  # Increase hit points
-            self.maxhp += self.upgradeHeal  # Increase Max hit points
+            self.hp += self.upamt  # Increase hit points
+            self.maxhp += self.upamt  # Increase Max hit points
             return True
         else:
             return False
+
+    @property
+    def stat(self):
+        return f"HP: {self.hp}/{self.maxhp}   " + green('+' + str(self.upamt))
 
 
 class Archer(Defender):
     maxhp = 5
     value = 5
-    upgradecost = 8
+    upcost = 8
+    upamt = 1
 
     def __init__(self):
         super().__init__()
@@ -257,19 +240,24 @@ class Archer(Defender):
 
     def upgrade(self) -> bool:
         if super().upgrade():
-            self.hp += 1  # Increase hit points
-            self.maxhp += 1  # Increase Max hit points
-            self.damage[0] += 1
-            self.damage[1] += 1
+            self.hp += self.upamt  # Increase hit points
+            self.maxhp += self.upamt  # Increase Max hit points
+            self.damage[0] += self.upamt
+            self.damage[1] += self.upamt
             return True
         else:
             return False
 
+    @property
+    def stat(self):
+        return f"HP: {self.hp}/{self.maxhp}   {green('+' + str(self.upamt))}\n" \
+               f"Damage: {self.damage[0]}-{self.damage[1]}   {green('+' + str(self.upamt))}"
+
 
 class Cannon(Defender):
     maxhp = 8
-    value = 7
-    upgradecost = 10
+    value = 10
+    upcost = 15
     upamt = 1
     upprob = 0.1
     cooldown = 3
@@ -289,17 +277,16 @@ class Cannon(Defender):
             self.push += self.upprob
             if self.cooldown > 1:
                 self.cooldown -= 1
-            print(self.stat)
             return True
         else:
             return False
 
     @property
     def stat(self):
-        return f"HP: {self.hp}/{self.maxhp}\n" \
-               f"Damage: {self.damage[0]}-{self.damage[1]}\n" \
-               f"Push Probability: {int(self.push * 100)}%\n" \
-               f"Firing Rate: {self.setup}/{self.cooldown}"
+        return f"HP: {self.hp}/{self.maxhp}   {green('+' + str(self.upamt))}\n" \
+               f"Damage: {self.damage[0]}-{self.damage[1]}   {green('+' + str(self.upamt))}\n" \
+               f"Push Probability: {int(self.push * 100)}%   {green(f'+{int(self.upprob * 100)}%')}\n" \
+               f"Firing Rate: {self.setup}/{self.cooldown}   {green('-1')}"
 
     def fire(self):
         self.setup += 1
@@ -316,9 +303,9 @@ class Cannon(Defender):
 
 class Mine(Defender):
     maxhp = None
-    value = 8
+    value = 7
     damage = 10
-    upgradecost = 2
+    upcost = 2
 
     def upgrade(self) -> bool:
         if super().upgrade():
@@ -350,6 +337,10 @@ class Mine(Defender):
                 if isinstance(square, Monster):
                     square.hp -= self.damage
         lanes[self.lane][self.column] = None
+
+    @property
+    def stat(self):
+        return 'Damage: ' + str(self.damage) + '   ' + green('+2')
 
 
 def setup(rows: int, cols: int) -> list[list[None]]:
@@ -427,6 +418,8 @@ def battle():
                             if square.exist:
                                 if shell[1]:
                                     square.move(1, 'is pushed back', False)
+                                    if not square.exist:
+                                        break
                             else:
                                 break
                             shelling.remove(shell)
@@ -468,13 +461,14 @@ def battlefieldisplay(squarespacing: int = 8):
 
 def menu(*options: str, header: str = "", goback: str = "Exit", query: str = "Your Choice? ") -> int:
     """Menu display with user input validation"""
-    print(header)
+    if header:
+        print(header)
     i = 1
     for option in options:
         if i % 2 == 1:
-            end = "\t"
+            end = " \t"
         else:
-            end = "\n"
+            end = " \n"
         print(f"{i}. {option}".ljust(28), end=end)
         i += 1
     print(f"{0}. {goback}")
@@ -492,6 +486,22 @@ def positionvalidation(query: str) -> (str, int):
         print("Invalid Input! Please enter a lane letter and a column number")
 
 
+def checkint(query: str, *, mininput: int = 1, maxinput: float = float('inf')) -> int:
+    """Check if user input is positive integer, repeat input function if otherwise"""
+    while True:
+        try:
+            ans = int(input(query).strip())
+            if mininput <= ans <= maxinput:  # positive, does not accept 0
+                return ans
+            else:
+                raise ValueError
+        except ValueError:
+            maxno = maxinput
+            if maxinput == float('inf'):
+                maxno = 'Infinity'
+            print(f"Invalid entry. Please enter a number from {mininput}-{maxno}")
+
+
 def unitshopping() -> bool:
     unit = menu(*[f"{Pickme.__name__} ({Pickme.value} gold)" for Pickme in Defender.__subclasses__()],
                 goback="Don't buy",
@@ -506,26 +516,25 @@ def unitshopping() -> bool:
     return False
 
 
-def unitupgrade() -> bool:
+def picking() -> bool:
     while True:
-        lane, column = positionvalidation("Enter position of unit: ")
-        if isinstance(lanes[lane][column], Defender):
-            return lanes[lane][column].upgrade()
+        lane, column = positionvalidation('Enter position of unit: ')
+        picked = lanes[lane][column]
+        if picked is not None:
+            print(bold(picked), picked.stat, sep='\n')
+            if isinstance(picked, Defender):
+                options = [green(f'Upgrade {picked} ({picked.upcost} gold)')]
+                if not isinstance(picked, Mine) and picked.hp < picked.maxhp:
+                    options.append(f'Heal {picked} (2 hp / gold)')
+                opt = menu(*options)
+                if opt == 1:
+                    return picked.upgrade()
+                elif opt == 2 and len(options) == 2:
+                    return picked.heal()
+                else:
+                    return False
         else:
-            print("Not a defensive unit")
-            return False
-
-
-def heal() -> bool:
-    while True:
-        lane, column = positionvalidation("Enter position of unit: ")
-        if isinstance(lanes[lane][column], Defender) and not isinstance(lanes[lane][column], Mine):
-            if lanes[lane][column].heal():
-                return True
-            else:
-                return False
-        else:
-            print(lanes[lane][column], "cannot be healed")
+            print('Not a unit')
 
 
 def turning():
@@ -551,7 +560,7 @@ def turning():
 def savegame():
     data = f"stats = {stats}\n"\
            f"lanes = {lanes}\n" + \
-           repr(monster)
+           repr(Monster)
     for Monstertype in Monster.__subclasses__():
         data += repr(Monstertype)
     hash(data)
@@ -587,7 +596,7 @@ if initchoice == 1 or 2:  # Play game
             turning()
         while True:
             battlefieldisplay()
-            chosen = menu("Buy unit", "Upgrade unit", "Heal unit (2 hp / gold)", "End Turn", "Save game",
+            chosen = menu("Buy unit", "Pick Unit", "End Turn", "Save game",
                           header=f"Turn {stats['turn']}\t\t\t"
                                  f"Threat: [{('-' * stats['threat']).ljust(stats['threatbar'])}]\t\t\t"
                                  f"Danger Level: {stats['danger']}\n"
@@ -597,14 +606,11 @@ if initchoice == 1 or 2:  # Play game
                 if unitshopping():
                     break
             elif chosen == 2:
-                if unitupgrade():
+                if picking():
                     break
-            elif chosen == 3:
-                if heal():
-                    break
-            elif chosen == 4:  # end turn
+            elif chosen == 3:  # end turn
                 break
-            elif chosen == 5:
+            elif chosen == 4:
                 savegame()
             elif chosen == 0:  # Quit Game
                 print("\nSee you next time!")
