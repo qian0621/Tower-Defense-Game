@@ -1,8 +1,11 @@
 from random import randint, choice, random
 
 
-green = lambda txt: f"\033[92m{txt}\033[00m"
-bold = lambda txt: f'\033[01m{txt}\033[00m'
+default = '\033[00m'
+green = lambda txt: '\033[92m' + txt + default
+bold = lambda txt: '\033[01m' + txt + default
+yellow = '\033[93m'
+cyan = '\033[96m'
 
 
 class Meta(type):
@@ -151,6 +154,13 @@ class Monster(Unit):
         cls.damage[1] += 1
         cls.maxhp += 1  # increase hit points
         cls.value += 1  # increase reward
+
+    @property
+    def stat(self):
+        return f"HP: {self.hp}/{self.maxhp}\n" \
+               f"Damage: {self.damage[0]}-{self.damage[1]}\n" \
+               f"Speed: {self.speed} square(s) / turn\n" \
+               f"Bounty: {self.value}"
 
 
 class Werewolf(Monster):
@@ -428,6 +438,13 @@ def battle():
 
 
 def battlefieldisplay(squarespacing: int = 8):
+    def squarecolor(obj):
+        if obj is None:
+            return default
+        elif isinstance(obj, Monster):
+            return yellow
+        elif isinstance(obj, Defender):
+            return cyan
     print(" " * (3 + squarespacing // 2), end="")  # spacing at front
     for columno in range(1, len(lanes[0]) + 1):  # column numbering
         print(str(columno).ljust(squarespacing + 1), end="")
@@ -442,7 +459,7 @@ def battlefieldisplay(squarespacing: int = 8):
                 name = ""
             else:
                 name = square.__class__.__name__[:squarespacing]  # to fit in box
-            print(name.center(squarespacing), end="|")  # print unit name + |
+            print(squarecolor(square) + name.center(squarespacing), end=default + "|")  # print unit name + |
         print()
         # hp row
         print("  ", end="|")  # spacing at front
@@ -453,7 +470,7 @@ def battlefieldisplay(squarespacing: int = 8):
                 hpstr = str(square.damage)
             else:
                 hpstr = f"{square.hp}/{square.maxhp}"  # hp display
-            print(hpstr.center(squarespacing), end="|")  # print hp + |
+            print(squarecolor(square) + hpstr.center(squarespacing), end=default + "|")  # print hp + |
         print()  # end line
         lanei += 1
     print("  " + "+".ljust(squarespacing + 1, "-") * len(lanes[0]) + "+")  # close bottom lane
@@ -521,7 +538,7 @@ def picking() -> bool:
         lane, column = positionvalidation('Enter position of unit: ')
         picked = lanes[lane][column]
         if picked is not None:
-            print(bold(picked), picked.stat, sep='\n')
+            print('', bold(str(picked)), picked.stat, sep='\n')
             if isinstance(picked, Defender):
                 options = [green(f'Upgrade {picked} ({picked.upcost} gold)')]
                 if not isinstance(picked, Mine) and picked.hp < picked.maxhp:
@@ -533,6 +550,9 @@ def picking() -> bool:
                     return picked.heal()
                 else:
                     return False
+            else:
+                print()
+                return False
         else:
             print('Not a unit')
 
@@ -567,7 +587,6 @@ def savegame():
     with open("stats.txt", "w") as savefile:
         savefile.write(data)  # saved stats and settings to stats.txt
         savefile.write(repr(Monster))
-
     print("\nGame saved!")
 
 
@@ -616,4 +635,7 @@ if initchoice == 1 or 2:  # Play game
                 print("\nSee you next time!")
                 exit(0)
         battle()
+battlefieldisplay()
+# print('Looking at the bodies of their fallen brethren, '
+#       'the attacking monsters realise their attack has failed and retreat')
 print("You have protected the city! You win!")  # declare Victory!
