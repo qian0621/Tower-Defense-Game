@@ -636,6 +636,12 @@ if initchoice == 1 or 2:  # Play game
                 exit(0)
         battle()
 battlefieldisplay()
-# print('Looking at the bodies of their fallen brethren, '
-#       'the attacking monsters realise their attack has failed and retreat')
+print('\nLooking at the bodies of their fallen brethren, '
+      'the attacking monsters realise their attack has failed and retreat\n')
+for row in lanes[:]:
+    # noinspection PyRedeclaration
+    for cell in row:
+        if isinstance(cell, Monster):
+            lanes[cell.lane][cell.column] = None
+battlefieldisplay()
 print("You have protected the city! You win!")  # declare Victory!
