@@ -1,4 +1,5 @@
-from random import randint, choice, random
+from random import randint, random
+from time import sleep
 
 
 default = '\033[00m'
@@ -68,6 +69,7 @@ class Unit(metaclass=Meta):
 class Monster(Unit):
     damage: list[int, int]
     speed: int
+    threat: int
     pop = 0
 
     def __init__(self):
@@ -122,6 +124,8 @@ class Monster(Unit):
                     print(moving[-1].__class__.__name__, "triggers Mine!")
                     square.explode()
                     moving = [monster for monster in moving if monster.exist]
+                    if not moving:
+                        return
                 else:
                     moving[-1].attack()
                     return
@@ -146,7 +150,7 @@ class Monster(Unit):
         stats['killcount'] += 1  # Kill count increase
         stats['gold'] += self.value  # Collect bounty
         print(f"You gain {self.value} gold as a reward.")  # Declare
-        stats['threat'] += self.value  # Threat bar increase by Monster’s value.
+        stats['threat'] += self.threat  # Threat bar increase by Monster’s value.
 
     @classmethod
     def strengthen(cls):  # Called/12 turns
@@ -168,6 +172,7 @@ class Werewolf(Monster):
     value = 3
     damage = [1, 4]
     speed = 2
+    threat = 6
 
 
 class Zombie(Monster):
@@ -175,6 +180,7 @@ class Zombie(Monster):
     value = 2
     damage = [3, 6]
     speed = 1
+    threat = 5
 
 
 class Defender(Unit):
@@ -564,12 +570,20 @@ def turning():
     stats['gold'] += 1  # reward survival
     print()
     spawncount = 0
-    while stats['threat'] >= stats['threatbar'] and spawncount != len(lanes):  # if threat metre filled up
-        choice(Monster.__subclasses__())()  # 1 monster spawned/metre length overflow
-        stats['threat'] -= stats['threatbar']
-        spawncount += 1
+    monstertypes = sorted(Monster.__subclasses__(), key=lambda Monstertype: Monstertype.threat, reverse=True)
+    if stats['threat'] >= stats['threatbar']:
+        generating = monstertypes.copy()
+        while stats['threat'] and spawncount != len(lanes) and generating:  # if threat metre filled up
+            for Monstertype in generating:
+                if Monstertype.threat > stats['threat']:
+                    generating.remove(Monstertype)
+                else:
+                    Monstertype()
+                    stats['threat'] -= Monstertype.threat
+                    spawncount += 1
+                    break
     if Monster.pop == 0:  # if empty field spawn monster
-        choice(Monster.__subclasses__())()
+        monstertypes[-1]()
     if stats['turn'] % 10 == 0:  # /10 turns
         stats['danger'] += 1  # danger level increases
         for Attacker in Monster.__subclasses__():  # Each Monster type strengthens
@@ -643,5 +657,6 @@ for row in lanes[:]:
     for cell in row:
         if isinstance(cell, Monster):
             lanes[cell.lane][cell.column] = None
+    sleep(0.5)
 battlefieldisplay()
 print("You have protected the city! You win!")  # declare Victory!
